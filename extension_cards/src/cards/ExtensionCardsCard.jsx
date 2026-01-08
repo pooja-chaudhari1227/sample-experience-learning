@@ -45,7 +45,7 @@ const ExtensionCardsCard = (props) => {
             try {
                 const queryParams = new URLSearchParams();
                 queryParams.append('cardId', cardId);
-                queryParams.append('searchValue', searchValue);
+                queryParams.append('id', searchValue);
                 queryParams.append('apiKey', "4e3f85f4-e8ad-4e76-b54b-8eb22843aa06");
                 queryParams.append('typeFlag',"false");
 
