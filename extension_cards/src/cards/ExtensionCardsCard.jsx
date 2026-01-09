@@ -1,194 +1,259 @@
-import React, { useState } from 'react';
-import PropTypes from 'prop-types';
-import { withStyles } from '@ellucian/react-design-system/core/styles';
-import { spacing40 } from '@ellucian/react-design-system/core/styles/tokens';
+// disable eslint
+// eslint-disable-next-line react-hooks/exhaustive-deps
+
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import PropTypes from "prop-types";
+import { withStyles } from "@ellucian/react-design-system/core/styles";
+import { spacing40 } from "@ellucian/react-design-system/core/styles/tokens";
 import {
-    Typography,
-    Search,
-    Radio,
-    RadioGroup,
-    FormControl,
-    FormControlLabel,
-    FormLabel,
-    Button
-} from '@ellucian/react-design-system/core';
-import { useCardControl } from "@ellucian/experience-extension-utils";
-import debounce from "lodash";
+  Typography,
+  Search,
+  Radio,
+  RadioGroup,
+  FormControl,
+  FormControlLabel,
+  FormLabel,
+  Button,
+} from "@ellucian/react-design-system/core";
+import { useCardControl, useData } from "@ellucian/experience-extension-utils";
+import { debounce } from "lodash";
 
 const styles = () => ({
-    card: {
-        marginTop: 0,
-        marginRight: spacing40,
-        marginBottom: 0,
-        marginLeft: spacing40
-    },
-    buttonContainer: {
-        display: 'flex',
-        justifyContent: 'center',
-        marginTop: spacing40
-    }
+  card: {
+    marginTop: 0,
+    marginRight: spacing40,
+    marginBottom: 0,
+    marginLeft: spacing40,
+  },
+  buttonContainer: {
+    display: "flex",
+    justifyContent: "center",
+    marginTop: spacing40,
+  },
 });
 
 const ExtensionCardsCard = (props) => {
-    const {
-        classes,
-        cardInfo: { cardId }
-    } = props;
+  const {
+    classes,
+    cardInfo: { cardId, configuration },
+  } = props;
 
-    const [searchValue, setSearchValue] = useState('');
-    const [searchType, setSearchType] = useState('bannerId');
-    // const { authenticatedEthosFetch } = useData();
-    const { navigateToPage } = useCardControl();
+  const debouncedRef = useRef(null);
 
-    console.log('card id:', cardId);
+  const [searchValue, setSearchValue] = useState("");
+  const [searchType, setSearchType] = useState("bannerId");
+  // const { authenticatedEthosFetch } = useData();
+  const { navigateToPage } = useCardControl();
+  const { authenticatedEthosFetch } = useData();
+  console.log("card id:", cardId);
 
-    const handleSearchChange = (event) => {
-        setSearchValue(event.target.value);
-        console.log(event.target.value, "search value");
-        debounceFunction(event.target.value)
-    };
+  // Normalize config so it works in Preview (flat) and Deployment (nested)
+  useMemo(() => {
+    console.log(configuration, "configuration");
+    return configuration;
+  }, [configuration]);
 
-    const debounceFunction = (value)=> {
-        console.log("inside debounce")
-        debounce((value) => {
-            console.log(value,": searchvalue from debounce");
-    }, 500);
+  const handleSearchChange = (event) => {
+    const value = event.target.value;
+    setSearchValue(value);
+    debouncedRef.current(value);
+  };
+
+  const handleSearchTypeChange = (event) => {
+    setSearchType(event.target.value);
+  };
+
+  const handleSearch = (event) => {
+    if (event.key === "Enter") {
+      console.log("Search submitted:", searchValue);
+      console.log("Search type:", searchType);
+    }
+  };
+
+  const handleViewDetails = (event) => {
+    console.log(event);
+    navigateToPage({ route: "/ViewDetails" });
+  };
+
+  const handleGetDataDebounced = async (searchValue) => {
+    try {
+      const queryParams = new URLSearchParams();
+      queryParams.append("cardId", cardId);
+      queryParams.append("id", searchValue);
+      //   queryParams.append("apiKey", "4e3f85f4-e8ad-4e76-b54b-8eb22843aa06");
+      queryParams.append("apiKey", configuration?.apiKey);
+      queryParams.append(
+        "typeFlag",
+        searchType === "bannerId" ? "true" : "false"
+      );
+
+      const resource = `test-sample---1?${queryParams.toString()}`;
+      console.log("Full resource URL:", resource);
+
+      const options = {
+        method: "GET",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+        },
+      };
+
+      const response = await authenticatedEthosFetch(resource, options);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("fetch API Error:", errorText);
+        throw new Error(
+          `HTTP ${response.status}: ${response.statusText || errorText}`
+        );
+      }
+
+      const data = await response.json();
+      console.log("fetch API response:", data);
+
+      if (data.errors && data.errors.length > 0) {
+        console.error("API returned errors:", data.errors);
+        throw new Error(
+          data.errors[0].description || data.errors[0].details || "API error"
+        );
+      }
+
+      let fetchedData = null;
+
+      console.log("Extracted data:", fetchedData);
+    } catch (err) {
+      console.error("Failed to fetch data:", err.message);
+      console.error("Full error:", err);
+    }
+  };
+
+  useEffect(() => {
+    if (configuration) {
+      debouncedRef.current = debounce((value) => {
+        handleGetDataDebounced(value);
+      }, 1500);
     }
 
-
-    // useEffect(() => {
-    //     console.log(searchValue,": searchvalue");
-
-    // },[searchValue])
-
-    const handleSearchTypeChange = (event) => {
-        setSearchType(event.target.value);
+    return () => {
+      debouncedRef.current.cancel();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cardId, searchType, authenticatedEthosFetch, configuration]);
 
-    const handleSearch = (event) => {
-        if (event.key === 'Enter') {
-            console.log('Search submitted:', searchValue);
-            console.log('Search type:', searchType);
-        }
-    };
+  // useEffect(() => {
+  //     let isMounted = true;
 
-    const handleViewDetails = (event) => {
-        console.log(event);
-        navigateToPage({ route: '/ViewDetails' });
-    };
+  //     const fetchData = async () => {
+  //         if (!isMounted) return;
 
+  //         try {
+  //             const queryParams = new URLSearchParams();
+  //             queryParams.append('cardId', cardId);
+  //             queryParams.append('id', searchValue);
+  //             queryParams.append('apiKey', "4e3f85f4-e8ad-4e76-b54b-8eb22843aa06");
+  //             queryParams.append('typeFlag', searchType === 'bannerId' ? "true" : "false");
 
-    // useEffect(() => {
-    //     let isMounted = true;
+  //             const resource = `test-sample---1?${queryParams.toString()}`;
+  //             console.log("Full resource URL:", resource);
 
-    //     const fetchData = async () => {
-    //         if (!isMounted) return;
+  //             const options = {
+  //                 method: 'GET',
+  //                 headers: {
+  //                     'Accept': 'application/json',
+  //                     'Content-Type': 'application/json',
+  //                 },
+  //             };
 
-    //         try {
-    //             const queryParams = new URLSearchParams();
-    //             queryParams.append('cardId', cardId);
-    //             queryParams.append('id', searchValue);
-    //             queryParams.append('apiKey', "4e3f85f4-e8ad-4e76-b54b-8eb22843aa06");
-    //             queryParams.append('typeFlag', searchType === 'bannerId' ? "true" : "false");
+  //             const response = await authenticatedEthosFetch(resource, options);
 
-    //             const resource = `test-sample---1?${queryParams.toString()}`;
-    //             console.log("Full resource URL:", resource);
+  //             if (!response.ok) {
+  //                 const errorText = await response.text();
+  //                 console.error("fetch API Error:", errorText);
+  //                 throw new Error(`HTTP ${response.status}: ${response.statusText || errorText}`);
+  //             }
 
-    //             const options = {
-    //                 method: 'GET',
-    //                 headers: {
-    //                     'Accept': 'application/json',
-    //                     'Content-Type': 'application/json',
-    //                 },
-    //             };
+  //             const data = await response.json();
+  //             console.log("fetch API response:", data);
 
-    //             const response = await authenticatedEthosFetch(resource, options);
+  //             if (data.errors && data.errors.length > 0) {
+  //                 console.error("API returned errors:", data.errors);
+  //                 throw new Error(data.errors[0].description || data.errors[0].details || "API error");
+  //             }
 
-    //             if (!response.ok) {
-    //                 const errorText = await response.text();
-    //                 console.error("fetch API Error:", errorText);
-    //                 throw new Error(`HTTP ${response.status}: ${response.statusText || errorText}`);
-    //             }
+  //             let fetchedData = null;
 
-    //             const data = await response.json();
-    //             console.log("fetch API response:", data);
+  //             console.log("Extracted data:", fetchedData);
 
-    //             if (data.errors && data.errors.length > 0) {
-    //                 console.error("API returned errors:", data.errors);
-    //                 throw new Error(data.errors[0].description || data.errors[0].details || "API error");
-    //             }
+  //         } catch (err) {
+  //             console.error("Failed to fetch data:", err.message);
+  //             console.error("Full error:", err);
+  //         }
+  //     };
 
-    //             let fetchedData = null;
+  //     fetchData();
 
-    //             console.log("Extracted data:", fetchedData);
+  //     return () => {
+  //         isMounted = false;
+  //     };
+  // }, [cardId, authenticatedEthosFetch, searchValue, searchType]);
 
-    //         } catch (err) {
-    //             console.error("Failed to fetch data:", err.message);
-    //             console.error("Full error:", err);
-    //         }
-    //     };
+  return (
+    <div className={classes.card}>
+      <Typography variant="h2" gutterBottom>
+        Sample Extension Card
+      </Typography>
 
-    //     fetchData();
+      <FormControl>
+        <FormLabel id="search-type-radio-group">Search By</FormLabel>
+        <RadioGroup
+          row
+          aria-labelledby="search-type-radio-group"
+          name="search-type-radio-group"
+          value={searchType}
+          onChange={handleSearchTypeChange}
+        >
+          <FormControlLabel
+            value="bannerId"
+            control={<Radio />}
+            label="Banner ID"
+          />
+          <FormControlLabel
+            value="lastName"
+            control={<Radio />}
+            label="Last Name"
+          />
+        </RadioGroup>
+      </FormControl>
 
-    //     return () => {
-    //         isMounted = false;
-    //     };
-    // }, [cardId, authenticatedEthosFetch, searchValue, searchType]);
+      <Typography gutterBottom>Press enter to submit.</Typography>
 
+      <Search
+        inputProps={{ "aria-label": "Search for an item" }}
+        id="search-example"
+        name="search"
+        placeholder="Standard Search"
+        value={searchValue}
+        onChange={handleSearchChange}
+        onKeyDown={handleSearch}
+      />
 
-    return (
-        <div className={classes.card}>
-            <Typography variant="h2" gutterBottom>
-                Sample Extension Card
-            </Typography>
-
-            <FormControl>
-                <FormLabel id="search-type-radio-group">Search By</FormLabel>
-                <RadioGroup
-                    row
-                    aria-labelledby="search-type-radio-group"
-                    name="search-type-radio-group"
-                    value={searchType}
-                    onChange={handleSearchTypeChange}
-                >
-                    <FormControlLabel value="bannerId" control={<Radio />} label="Banner ID" />
-                    <FormControlLabel value="lastName" control={<Radio />} label="Last Name" />
-                </RadioGroup>
-            </FormControl>
-
-            <Typography gutterBottom>
-                Press enter to submit.
-            </Typography>
-
-            <Search
-                inputProps={{ 'aria-label': 'Search for an item' }}
-                id="search-example"
-                name="search"
-                placeholder="Standard Search"
-                value={searchValue}
-                onChange={handleSearchChange}
-                onKeyDown={handleSearch}
-            />
-            
-            <div className={classes.buttonContainer}>
-                <Button
-                    color="primary"
-                    size="default"
-                    variant="contained"
-                    onClick={handleViewDetails}
-                >
-                    View Details
-                </Button>
-            </div>
-        </div>
-    );
+      <div className={classes.buttonContainer}>
+        <Button
+          color="primary"
+          size="default"
+          variant="contained"
+          onClick={handleViewDetails}
+        >
+          View Details
+        </Button>
+      </div>
+    </div>
+  );
 };
 
 ExtensionCardsCard.propTypes = {
-    classes: PropTypes.object.isRequired,
-    cardInfo: PropTypes.shape({
-        cardId: PropTypes.string.isRequired
-    }).isRequired
+  classes: PropTypes.object.isRequired,
+  cardInfo: PropTypes.object.isRequired,
 };
 
 export default withStyles(styles)(ExtensionCardsCard);
