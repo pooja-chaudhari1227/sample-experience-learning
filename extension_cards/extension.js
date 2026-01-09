@@ -12,9 +12,9 @@ module.exports = {
         //     excludeClickSelectors: ['a']
         // }
     }],
-    // page: {
-    //     source: './src/page/router.jsx'
-    // }
+    page: {
+        source: './src/page/router.jsx'
+    }
 };
 
 
